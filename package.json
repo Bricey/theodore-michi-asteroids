@@ -1,0 +1,18 @@
+{
+  "name": "asteroids-clone",
+  "version": "1.0.0",
+  "description": "Two-player Asteroids clone with Cooperative and Combat modes",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "^3.80.0",
+    "peerjs": "^1.5.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

@@ -1,0 +1,11 @@
+# Netlify deployment for Asteroids Clone
+# Deploy: netlify deploy --prod (after npm run build)
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
