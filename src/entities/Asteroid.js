@@ -29,7 +29,9 @@ export class Asteroid extends Phaser.Physics.Arcade.Sprite {
     const radius = ASTEROID_RADIUS[size] ?? 40;
     this.setDisplaySize(radius * 2, radius * 2);
     this.setOrigin(0.5, 0.5);
-    this.body.setCircle(radius);
+    // Small asteroids (radius 12) need a larger physics body so projectiles/ships reliably overlap
+    const physicsRadius = size === ASTEROID_SIZE.SMALL ? 20 : Math.max(radius, 14);
+    this.body.setCircle(physicsRadius);
     this.body.setDamping(PHYSICS.ASTEROID.DAMPING);
     this.body.setDrag(PHYSICS.ASTEROID.DRAG);
     this.body.setMaxVelocity(PHYSICS.ASTEROID.MAX_VELOCITY);

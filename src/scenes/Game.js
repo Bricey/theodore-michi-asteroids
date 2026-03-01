@@ -27,6 +27,7 @@ export class Game extends Phaser.Scene {
     this.isHost = this.registry.get('isHost') ?? true;
     this.gameMode = this.registry.get('gameMode') ?? 'cooperative';
     this.roomCode = this.registry.get('roomCode') ?? '';
+    this.twoPlayerLocal = this.registry.get('twoPlayerLocal') ?? false;
 
     this.ships = [];
     this.projectiles = [];
@@ -35,23 +36,35 @@ export class Game extends Phaser.Scene {
     this.lastShipStateSent = 0;
     this.lastTickSent = 0;
     this.fireCooldown = 0;
+    this.fireCooldownP2 = 0; // Per-player cooldown for local 2P
     this.rapidFireUntil = 0;
     this.spreadShotUntil = 0;
     this.fastProjectilesUntil = 0;
     this.rocketsRemaining = 0;
+    this.rocketsRemainingP2 = 0;
 
     this.scoreManager = new ScoreManager(this, this.gameMode);
     this.spawnManager = new SpawnManager(this, this.isHost);
     this.network = new NetworkManager(this);
     this.inputManager = new InputManager(this, 0);
 
-    // Local ship: host = player1, guest = player2
-    this.localPlayerId = this.isHost ? 'player1' : 'player2';
-    this.localShip = new Ship(this, width / 2, height / 2, this.localPlayerId);
-    this.ships.push(this.localShip);
+    const cx = width / 2;
+    const cy = height / 2;
 
-    // Second input for local 2P Combat (same machine): use second keyboard set
-    this.inputManagerP2 = this.gameMode === 'combat' ? new InputManager(this, 1) : null;
+    if (this.twoPlayerLocal) {
+      // Local 2P: two ships, two inputs (keyboard P1: arrows+space, P2: WASD; or two gamepads)
+      this.localPlayerId = 'player1';
+      this.localShip = new Ship(this, cx - 50, cy, 'player1');
+      const shipP2 = new Ship(this, cx + 50, cy, 'player2');
+      this.ships.push(this.localShip, shipP2);
+      this.inputManagerP2 = new InputManager(this, 1);
+    } else {
+      // Online: one local ship (host = player1, guest = player2)
+      this.localPlayerId = this.isHost ? 'player1' : 'player2';
+      this.localShip = new Ship(this, cx, cy, this.localPlayerId);
+      this.ships.push(this.localShip);
+      this.inputManagerP2 = null;
+    }
 
     // UI
     this.scoreText = this.add.text(20, 20, 'Score: 0', { fontFamily: 'sans-serif', fontSize: '24px', color: '#fff' });
@@ -68,7 +81,7 @@ export class Game extends Phaser.Scene {
 
     // Collision groups: use Groups so overlap consistently sees all members each frame
     this.shipGroup = this.add.group();
-    this.shipGroup.add(this.localShip);
+    this.ships.forEach((s) => this.shipGroup.add(s));
     this.projectileGroup = this.add.group();
     this.rocketGroup = this.add.group();
     this.asteroidGroup = this.add.group();
@@ -106,6 +119,10 @@ export class Game extends Phaser.Scene {
   }
 
   setupNetwork() {
+    if (this.twoPlayerLocal) {
+      this.roomCodeText.setText('Local 2P');
+      return;
+    }
     if (this.isHost) {
       this.network.createRoom().then((code) => {
         this.roomCodeText.setText(`Room: ${code}`);
@@ -281,7 +298,8 @@ export class Game extends Phaser.Scene {
     if (!proj.body) return;
     this.projectileGroup.remove(proj);
     proj.destroy();
-    const asteroid = ast.asteroidId ? ast : this.spawnManager.asteroids.find((a) => a === ast);
+    // ast is the asteroid from overlap (any size); resolve from group or spawn list
+    const asteroid = ast && (ast.asteroidId != null) ? ast : this.spawnManager.asteroids.find((a) => a === ast);
     if (asteroid && this.asteroidGroup.contains(asteroid)) {
       this.destroyAsteroid(asteroid, proj.ownerId || 'player1');
     }
@@ -302,7 +320,11 @@ export class Game extends Phaser.Scene {
     const powerup = this.spawnManager.spawnPowerup(asteroid.x, asteroid.y);
     if (powerup) this.powerupGroup.add(powerup);
     const children = this.spawnManager.splitAsteroid(asteroid);
-    children.forEach((c) => { this.asteroidGroup.add(c); c.launch(); });
+    children.forEach((c) => {
+      c.body.updateFromGameObject();
+      this.asteroidGroup.add(c);
+      c.launch();
+    });
     if (this.network.connected) {
       this.network.send({ type: 'HIT', asteroidId: asteroid.asteroidId });
     }
@@ -320,7 +342,11 @@ export class Game extends Phaser.Scene {
     this.playSfx('sfx-explode');
     this.asteroidGroup.remove(asteroid);
     const children = this.spawnManager.splitAsteroidOnly(asteroid);
-    children.forEach((c) => { this.asteroidGroup.add(c); c.launch(); });
+    children.forEach((c) => {
+      c.body.updateFromGameObject();
+      this.asteroidGroup.add(c);
+      c.launch();
+    });
   }
 
   onShipHitAsteroid(ship, ast) {
@@ -399,7 +425,10 @@ export class Game extends Phaser.Scene {
         this.fastProjectilesUntil = this.time.now + 6000;
         break;
       case 'rockets':
-        this.rocketsRemaining += 3;
+        if (this.twoPlayerLocal) {
+          if (ship.playerId === 'player1') this.rocketsRemaining += 3;
+          else this.rocketsRemainingP2 += 3;
+        } else this.rocketsRemaining += 3;
         break;
       default:
         break;
@@ -422,8 +451,8 @@ export class Game extends Phaser.Scene {
       count:    18,
       speed:    140,
       duration: 750,
-      // Green debris for the player ship; red tint as an accent ring
-      color: ship.playerId === 'player1' ? 0x00ff88 : 0x4488ff,
+      // Red/blue debris to match ship tint
+      color: ship.playerId === 'player1' ? 0xff6666 : 0x6666ff,
       size: 4,
     });
 
@@ -440,8 +469,9 @@ export class Game extends Phaser.Scene {
   respawnShip(ship) {
     const cx = this.cameras.main.width / 2;
     const cy = this.cameras.main.height / 2;
+    const dx = this.twoPlayerLocal ? (ship.playerId === 'player2' ? 50 : -50) : 0;
 
-    ship.setPosition(cx, cy);
+    ship.setPosition(cx + dx, cy);
     ship.body.setVelocity(0, 0);
     ship.body.setAngularVelocity(0);
     ship.body.enable = true;
@@ -486,20 +516,35 @@ export class Game extends Phaser.Scene {
   }
 
   fire(ship) {
-    if (this.fireCooldown > 0) return;
+    const cooldown = this.twoPlayerLocal
+      ? (ship.playerId === 'player1' ? this.fireCooldown : this.fireCooldownP2)
+      : this.fireCooldown;
+    if (cooldown > 0) return;
     const now = this.time.now;
-    const useRocket = this.rocketsRemaining > 0 && ship.playerId === this.localPlayerId;
+    const rockets = this.twoPlayerLocal
+      ? (ship.playerId === 'player1' ? this.rocketsRemaining : this.rocketsRemainingP2)
+      : this.rocketsRemaining;
+    const useRocket = rockets > 0 && (this.twoPlayerLocal || ship.playerId === this.localPlayerId);
     if (useRocket) {
-      this.rocketsRemaining--;
-      this.fireCooldown = 200;
+      if (this.twoPlayerLocal) {
+        if (ship.playerId === 'player1') this.rocketsRemaining--;
+        else this.rocketsRemainingP2--;
+      } else this.rocketsRemaining--;
+      if (this.twoPlayerLocal) {
+        if (ship.playerId === 'player1') this.fireCooldown = 200;
+        else this.fireCooldownP2 = 200;
+      } else this.fireCooldown = 200;
       this.playSfx('sfx-rocket-fire');
       const rocket = new Rocket(this, ship.x, ship.y, ship.rotation, ship.playerId);
       this.rocketGroup.add(rocket);
       rocket.launch(ship.rotation);
       return;
     }
-    const cooldown = this.rapidFireUntil > now ? 100 : 300;
-    this.fireCooldown = cooldown;
+    const shotCooldown = this.rapidFireUntil > now ? 100 : 300;
+    if (this.twoPlayerLocal) {
+      if (ship.playerId === 'player1') this.fireCooldown = shotCooldown;
+      else this.fireCooldownP2 = shotCooldown;
+    } else this.fireCooldown = shotCooldown;
     this.playSfx('sfx-shot');
     const spread = this.spreadShotUntil > now;
     const angles = spread ? [ship.rotation, ship.rotation + Math.PI] : [ship.rotation];
@@ -525,8 +570,8 @@ export class Game extends Phaser.Scene {
     const input = this.inputManager.getInput();
     this.applyInputToShip(this.localShip, input);
 
-    // Local 2P: second ship exists only when we have 2 ships (e.g. remote joined)
-    if (this.gameMode === 'combat' && this.inputManagerP2 && this.ships[1]) {
+    // Local 2P: second input controls second ship (coop and combat)
+    if (this.inputManagerP2 && this.ships[1]) {
       const input2 = this.inputManagerP2.getInput();
       this.applyInputToShip(this.ships[1], input2);
     }
@@ -558,9 +603,16 @@ export class Game extends Phaser.Scene {
     });
 
     if (this.fireCooldown > 0) this.fireCooldown -= delta;
+    if (this.twoPlayerLocal && this.fireCooldownP2 > 0) this.fireCooldownP2 -= delta;
 
     this.scoreText.setText(`Score: ${this.scoreManager.getTotalScore()}`);
-    this.livesText.setText(`Lives: ${this.scoreManager.getLives(this.localPlayerId)}`);
+    if (this.twoPlayerLocal) {
+      this.livesText.setText(
+        `P1: ${this.scoreManager.getLives('player1')} (red)  |  P2: ${this.scoreManager.getLives('player2')} (blue)`
+      );
+    } else {
+      this.livesText.setText(`Lives: ${this.scoreManager.getLives(this.localPlayerId)}`);
+    }
 
     if (this.isHost && this.spawnManager.getAsteroidCount() === 0) {
       this.spawnInitialWave();

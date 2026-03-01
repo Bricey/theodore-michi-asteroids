@@ -64,11 +64,35 @@ export class MainMenu extends Phaser.Scene {
       coopBtn.setColor('#666666');
     });
 
-    // Create Game (Host)
-    const createBtn = this.add
-      .text(width / 2, 550, 'Create Game (Host)', {
+    // Play Local (2P) - two players, same screen, two controllers
+    const localBtn = this.add
+      .text(width / 2, 520, 'Play Local (2P)', {
         fontFamily: 'sans-serif',
         fontSize: '32px',
+        color: '#aaccff',
+        backgroundColor: '#333333',
+        padding: { x: 24, y: 12 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    localBtn.on('pointerdown', () => {
+      if (!selectedMode) {
+        this.showMessage('Select Cooperative or Combat first');
+        return;
+      }
+      this.registry.set('gameMode', selectedMode);
+      this.registry.set('isHost', true);
+      this.registry.set('twoPlayerLocal', true);
+      this.registry.set('roomCode', '');
+      this.scene.start('Game');
+    });
+
+    // Create Game (Host) - online
+    const createBtn = this.add
+      .text(width / 2, 600, 'Create Game (Host)', {
+        fontFamily: 'sans-serif',
+        fontSize: '28px',
         color: '#ffffff',
         backgroundColor: '#333333',
         padding: { x: 24, y: 12 },
@@ -83,12 +107,13 @@ export class MainMenu extends Phaser.Scene {
       }
       this.registry.set('gameMode', selectedMode);
       this.registry.set('isHost', true);
+      this.registry.set('twoPlayerLocal', false);
       this.scene.start('Game');
     });
 
     // Join Game (Guest) - room code via keyboard
     const joinBtn = this.add
-      .text(width / 2, 650, 'Join Game (Guest)', {
+      .text(width / 2, 700, 'Join Game (Guest)', {
         fontFamily: 'sans-serif',
         fontSize: '32px',
         color: '#ffffff',
@@ -99,7 +124,7 @@ export class MainMenu extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     const codeDisplay = this.add
-      .text(width / 2, 750, 'Code: ______', {
+      .text(width / 2, 800, 'Code: ______', {
         fontFamily: 'sans-serif',
         fontSize: '28px',
         color: '#ffffff',
@@ -108,7 +133,7 @@ export class MainMenu extends Phaser.Scene {
       .setVisible(false);
 
     const confirmJoinBtn = this.add
-      .text(width / 2, 830, 'Join', {
+      .text(width / 2, 880, 'Join', {
         fontFamily: 'sans-serif',
         fontSize: '24px',
         color: '#00aaff',
@@ -141,6 +166,7 @@ export class MainMenu extends Phaser.Scene {
       } else if (event.key === 'Enter' && roomCodeInput.length === 6) {
         this.registry.set('gameMode', selectedMode);
         this.registry.set('isHost', false);
+        this.registry.set('twoPlayerLocal', false);
         this.registry.set('roomCode', roomCodeInput);
         this.inputMode = null;
         this.scene.start('Game');
@@ -154,6 +180,7 @@ export class MainMenu extends Phaser.Scene {
       if (roomCodeInput.length !== 6) return;
       this.registry.set('gameMode', selectedMode);
       this.registry.set('isHost', false);
+      this.registry.set('twoPlayerLocal', false);
       this.registry.set('roomCode', roomCodeInput);
       this.inputMode = null;
       this.scene.start('Game');
@@ -161,7 +188,7 @@ export class MainMenu extends Phaser.Scene {
 
     // Message area
     this.messageText = this.add
-      .text(width / 2, 950, '', {
+      .text(width / 2, 1000, '', {
         fontFamily: 'sans-serif',
         fontSize: '20px',
         color: '#ffaa00',

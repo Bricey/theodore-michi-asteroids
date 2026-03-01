@@ -14,7 +14,8 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
 
     this.setDisplaySize(8, 8);
     this.setRotation(angle);
-    this.body.setCircle(4);
+    // Radius 6 so fast bullets don't tunnel through small asteroids
+    this.body.setCircle(6);
     this.body.setDamping(false);
     this.body.setDrag(0);
     this.body.setMaxVelocity(PHYSICS.PROJECTILE.VELOCITY);

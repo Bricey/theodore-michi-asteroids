@@ -14,6 +14,8 @@ export const gameConfig = {
       debug: false,
       gravity: { x: 0, y: 0 },
       fps: 60,
+      // Higher bias reduces tunneling (small/fast bodies passing through each other)
+      overlapBias: 12,
     },
   },
   scale: {

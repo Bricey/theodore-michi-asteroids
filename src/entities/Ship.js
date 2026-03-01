@@ -15,8 +15,8 @@ export class Ship extends Phaser.Physics.Arcade.Sprite {
     this.setDisplaySize(32, 32);
     this.setScale(0.425);
     this.setOrigin(0.5, 0.5);
-    // Very bright tint: red for player 1, green for player 2
-    this.setTint(playerId === 'player1' ? 0xffaaaa : 0xaaffaa);
+    // Red for player 1, blue for player 2 (local 2P)
+    this.setTint(playerId === 'player1' ? 0xff6666 : 0x6666ff);
     this.configurePhysics();
   }
 
@@ -27,8 +27,8 @@ export class Ship extends Phaser.Physics.Arcade.Sprite {
     body.setCircle(9);
   }
 
-  /** Reusable vector for adding thrust (avoids allocations). */
-  _thrustVec = { x: 0, y: 0 };
+  /** Reusable Phaser Vector2 for thrust (velocityFromRotation requires a Vector2). */
+  _thrustVec = new Phaser.Math.Vector2();
 
   /** Add acceleration in a given direction (radians). Used for forward and lateral thrust. */
   addThrustInDirection(angle) {

@@ -1,28 +1,35 @@
 /**
  * GamepadHandler: Polls Gamepad API.
  * Thrust: Y (3) or stick up. Thrust left/right: X (2), B (1). Rotate: stick X only. Fire: A (0) or R1 (5).
+ * Supports playerIndex for local 2P: 0 = first gamepad, 1 = second gamepad.
  */
 export class GamepadHandler {
-  constructor() {
+  constructor(playerIndex = 0) {
+    this.playerIndex = playerIndex;
     this.gamepadIndex = null;
     this.lastFire = false;
   }
 
   /**
-   * Check for connected gamepads and use first available.
+   * Check for connected gamepads; use the one at playerIndex (0 = first, 1 = second).
    */
   poll() {
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let found = 0;
     for (let i = 0; i < gamepads.length; i++) {
       if (gamepads[i] && gamepads[i].connected) {
-        this.gamepadIndex = i;
-        break;
+        if (found === this.playerIndex) {
+          this.gamepadIndex = i;
+          return;
+        }
+        found++;
       }
     }
+    this.gamepadIndex = null;
   }
 
   /**
-   * Get input state from gamepad.
+   * Get input state from gamepad. Only reads from this player's assigned gamepad index.
    * thrust = forward, thrustLeft = lateral left, thrustRight = lateral right (add momentum in that direction).
    */
   getInput() {
@@ -34,7 +41,8 @@ export class GamepadHandler {
       rotateRight: false,
       fire: false,
     };
-    const gp = navigator.getGamepads?.()[this.gamepadIndex ?? 0];
+    if (this.gamepadIndex == null) return result;
+    const gp = navigator.getGamepads?.()[this.gamepadIndex];
     if (!gp || !gp.connected) return result;
 
     // Y (3) or left stick up = thrust forward
@@ -53,7 +61,8 @@ export class GamepadHandler {
   }
 
   isConnected() {
-    const gp = navigator.getGamepads?.()[this.gamepadIndex ?? 0];
+    if (this.gamepadIndex == null) return false;
+    const gp = navigator.getGamepads?.()[this.gamepadIndex];
     return gp?.connected ?? false;
   }
 }

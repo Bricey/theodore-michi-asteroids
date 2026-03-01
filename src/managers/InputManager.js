@@ -9,7 +9,7 @@ export class InputManager {
   constructor(scene, playerIndex = 0) {
     this.scene = scene;
     this.playerIndex = playerIndex;
-    this.gamepad = new GamepadHandler();
+    this.gamepad = new GamepadHandler(playerIndex);
     this.virtualJoystick = null;
     this.useTouch = false;
 
@@ -89,8 +89,8 @@ export class InputManager {
       return result;
     }
 
+    this.gamepad.poll();
     if (this.gamepad.isConnected()) {
-      this.gamepad.poll();
       const gp = this.gamepad.getInput();
       result.thrust = gp.thrust;
       result.thrustLeft = gp.thrustLeft;
