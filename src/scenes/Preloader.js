@@ -23,6 +23,10 @@ export class Preloader extends Phaser.Scene {
       bar.width = 396;
     });
 
+    this.load.on('loaderror', (file) => {
+      console.warn('[Preloader] Failed to load:', file.key, file.url);
+    });
+
     // Generate placeholder textures for bullet/powerup (ship & asteroids use real art)
     this.createPlaceholderTextures();
 
@@ -33,13 +37,14 @@ export class Preloader extends Phaser.Scene {
     this.load.image('michi-sadFace', `${img}/michi-sadFace.png`);
     this.load.image('theo-butt', `${img}/theo-butt.png`);
 
-    // Action-pack SFX (local under assets/audio/sfx)
+    // Action-pack SFX (OGG + WAV fallback for Safari and older browsers)
     const sfx = 'assets/audio/sfx';
-    this.load.audio('sfx-shot', `${sfx}/shot.ogg`);
-    this.load.audio('sfx-explode', `${sfx}/explode.ogg`);
-    this.load.audio('sfx-die', `${sfx}/die.ogg`);
-    this.load.audio('sfx-powerup', `${sfx}/powerup2.ogg`);
-    this.load.audio('sfx-thrust', `${sfx}/fire.ogg`);
+    this.load.audio('sfx-shot', [`${sfx}/shot.ogg`, `${sfx}/shot.wav`]);
+    this.load.audio('sfx-explode', [`${sfx}/explode.ogg`, `${sfx}/explode.wav`]);
+    this.load.audio('sfx-die', [`${sfx}/die.ogg`, `${sfx}/die.wav`]);
+    this.load.audio('sfx-powerup', [`${sfx}/powerup2.ogg`, `${sfx}/powerup2.wav`]);
+    this.load.audio('sfx-rocket-fire', [`${sfx}/shot.ogg`, `${sfx}/shot.wav`]);
+    this.load.audio('sfx-rocket-explode', [`${sfx}/explode.ogg`, `${sfx}/explode.wav`]);
 
     // Minimal asset so progress bar animates
     this.load.image('dummy', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');

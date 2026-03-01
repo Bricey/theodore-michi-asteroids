@@ -1,0 +1,5 @@
+# Cloudflare Pages (used for CLI deploys: npx wrangler pages deploy dist)
+# For Git-based deploys, configure build in the Cloudflare dashboard instead.
+name = "asteroids-clone"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"

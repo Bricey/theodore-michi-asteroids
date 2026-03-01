@@ -1,6 +1,6 @@
 /**
  * InputManager: Abstract interface for keyboard, gamepad, and touch.
- * Returns { thrust, rotateLeft, rotateRight, fire }.
+ * Returns { thrust, thrustLeft, thrustRight, rotateLeft, rotateRight, fire }.
  */
 import { GamepadHandler } from '../input/GamepadHandler.js';
 import { VirtualJoystick } from '../input/VirtualJoystick.js';
@@ -69,7 +69,15 @@ export class InputManager {
    * Get input state. Prioritizes touch on mobile, else gamepad, else keyboard.
    */
   getInput() {
-    const result = { thrust: false, brake: false, rotateLeft: false, rotateRight: false, fire: false };
+    const result = {
+      thrust: false,
+      thrustLeft: false,
+      thrustRight: false,
+      brake: false,
+      rotateLeft: false,
+      rotateRight: false,
+      fire: false,
+    };
 
     if (this.useTouch && this.virtualJoystick) {
       const touch = this.virtualJoystick.getInput();
@@ -85,7 +93,9 @@ export class InputManager {
       this.gamepad.poll();
       const gp = this.gamepad.getInput();
       result.thrust = gp.thrust;
-      result.brake = gp.brake ?? false;
+      result.thrustLeft = gp.thrustLeft;
+      result.thrustRight = gp.thrustRight;
+      result.brake = false; // gamepad: no brake key
       result.rotateLeft = gp.rotateLeft;
       result.rotateRight = gp.rotateRight;
       result.fire = gp.fire;

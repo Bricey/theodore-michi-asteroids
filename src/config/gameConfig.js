@@ -1,12 +1,12 @@
 /**
  * Phaser game configuration: resolution, physics, scale.
- * Base resolution 1080x1920, portrait orientation.
+ * Base resolution 1920x1080, landscape orientation.
  */
 export const gameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
-  width: 1080,
-  height: 1920,
+  width: 1920,
+  height: 1080,
   backgroundColor: '#000000',
   physics: {
     default: 'arcade',
@@ -19,8 +19,8 @@ export const gameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    min: { width: 360, height: 640 },
-    max: { width: 1080, height: 1920 },
+    min: { width: 640, height: 360 },
+    max: { width: 1920, height: 1080 },
   },
   scene: [], // Populated in main.js
 };
@@ -43,6 +43,12 @@ export const PHYSICS = {
     DAMPING: false,
     DRAG: 0,
     VELOCITY: 400,
+    VELOCITY_FAST: 620,
     LIFETIME_MS: 2000,
+  },
+  ROCKET: {
+    VELOCITY: 650,
+    LIFETIME_MS: 1500,
+    EXPLOSION_RADIUS: 80,
   },
 };

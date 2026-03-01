@@ -14,8 +14,9 @@ export class Ship extends Phaser.Physics.Arcade.Sprite {
 
     this.setDisplaySize(32, 32);
     this.setScale(0.425);
-    // Brighter red for player 1, brighter green for player 2
-    this.setTint(playerId === 'player1' ? 0xff6666 : 0x66ff66);
+    this.setOrigin(0.5, 0.5);
+    // Very bright tint: red for player 1, green for player 2
+    this.setTint(playerId === 'player1' ? 0xffaaaa : 0xaaffaa);
     this.configurePhysics();
   }
 
@@ -23,15 +24,31 @@ export class Ship extends Phaser.Physics.Arcade.Sprite {
     body.setDamping(PHYSICS.SHIP.DAMPING);
     body.setDrag(PHYSICS.SHIP.DRAG);
     body.setMaxVelocity(PHYSICS.SHIP.MAX_VELOCITY);
-    body.setCircle(5);
+    body.setCircle(9);
+  }
+
+  /** Reusable vector for adding thrust (avoids allocations). */
+  _thrustVec = { x: 0, y: 0 };
+
+  /** Add acceleration in a given direction (radians). Used for forward and lateral thrust. */
+  addThrustInDirection(angle) {
+    this.scene.physics.velocityFromRotation(angle, PHYSICS.SHIP.THRUST, this._thrustVec);
+    this.body.acceleration.x += this._thrustVec.x;
+    this.body.acceleration.y += this._thrustVec.y;
   }
 
   applyThrust() {
-    this.scene.physics.velocityFromRotation(
-      this.rotation,
-      PHYSICS.SHIP.THRUST,
-      this.body.acceleration
-    );
+    this.addThrustInDirection(this.rotation);
+  }
+
+  /** Thrust left: add momentum perpendicular to ship (port side). */
+  applyThrustLeft() {
+    this.addThrustInDirection(this.rotation - Math.PI / 2);
+  }
+
+  /** Thrust right: add momentum perpendicular to ship (starboard). */
+  applyThrustRight() {
+    this.addThrustInDirection(this.rotation + Math.PI / 2);
   }
 
   brake() {

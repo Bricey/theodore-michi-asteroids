@@ -72,6 +72,27 @@ export class SpawnManager {
     return newAsteroids;
   }
 
+  /** Split asteroid on collision (asteroid-asteroid); no powerup drop. */
+  splitAsteroidOnly(asteroid) {
+    if (!this.isHost) return [];
+    const nextSize = asteroid.asteroidSize - 1;
+    if (nextSize < ASTEROID_SIZE.SMALL) return [];
+
+    const newAsteroids = [];
+    for (let i = 0; i < 2; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const offset = 20;
+      const nx = asteroid.x + Math.cos(angle) * offset;
+      const ny = asteroid.y + Math.sin(angle) * offset;
+      const child = new Asteroid(this.scene, nx, ny, nextSize);
+      newAsteroids.push(child);
+      this.asteroids.push(child);
+    }
+
+    this.removeAsteroid(asteroid);
+    return newAsteroids;
+  }
+
   removeAsteroid(asteroid) {
     const i = this.asteroids.indexOf(asteroid);
     if (i >= 0) this.asteroids.splice(i, 1);

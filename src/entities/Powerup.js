@@ -7,6 +7,12 @@ export const POWERUP_TYPES = {
   RAPID_FIRE: 'rapid_fire',
   SHIELD: 'shield',
   SCORE_MULTIPLIER: 'score_multiplier',
+  /** Fire two projectiles in opposite directions for a duration */
+  SPREAD_SHOT: 'spread_shot',
+  /** Projectiles travel faster for a duration */
+  FAST_PROJECTILES: 'fast_projectiles',
+  /** Grant 3 rockets: fast projectiles that explode and destroy in radius */
+  ROCKETS: 'rockets',
 };
 
 export class Powerup extends Phaser.Physics.Arcade.Sprite {

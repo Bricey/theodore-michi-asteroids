@@ -4,6 +4,7 @@
 import { Ship } from '../entities/Ship.js';
 import { Asteroid } from '../entities/Asteroid.js';
 import { Projectile } from '../entities/Projectile.js';
+import { Rocket } from '../entities/Rocket.js';
 import { Powerup } from '../entities/Powerup.js';
 import { Explosion } from '../entities/Explosion.js';
 import { InputManager } from '../managers/InputManager.js';
@@ -35,6 +36,9 @@ export class Game extends Phaser.Scene {
     this.lastTickSent = 0;
     this.fireCooldown = 0;
     this.rapidFireUntil = 0;
+    this.spreadShotUntil = 0;
+    this.fastProjectilesUntil = 0;
+    this.rocketsRemaining = 0;
 
     this.scoreManager = new ScoreManager(this, this.gameMode);
     this.spawnManager = new SpawnManager(this, this.isHost);
@@ -54,19 +58,51 @@ export class Game extends Phaser.Scene {
     this.livesText = this.add.text(20, 50, 'Lives: 3', { fontFamily: 'sans-serif', fontSize: '24px', color: '#fff' });
     this.roomCodeText = this.add.text(width - 20, 20, '', { fontFamily: 'sans-serif', fontSize: '20px', color: '#aaa' }).setOrigin(1, 0);
 
-    // Collision groups (plain groups so overlap uses each sprite's body correctly)
-    this.physics.add.group(this.ships);
+    // Fullscreen toggle button
+    this.fullscreenBtn = this.add.text(width - 24, height - 24, '⛶', {
+      fontFamily: 'sans-serif',
+      fontSize: '28px',
+      color: '#aaa',
+    }).setOrigin(1, 1).setInteractive({ useHandCursor: true });
+    this.fullscreenBtn.on('pointerdown', () => this.toggleFullscreen());
+
+    // Collision groups: use Groups so overlap consistently sees all members each frame
+    this.shipGroup = this.add.group();
+    this.shipGroup.add(this.localShip);
     this.projectileGroup = this.add.group();
+    this.rocketGroup = this.add.group();
     this.asteroidGroup = this.add.group();
     this.powerupGroup = this.add.group();
 
-    // Looping thrust SFX (start/stop controlled in update from input)
-    this.thrustSound = this.sound.add('sfx-thrust', { loop: true });
-    this.anyThrusting = false;
+    // Unlock Web Audio on first user interaction (browsers block until then)
+    this.audioUnlocked = false;
+    const unlockAudio = () => {
+      if (this.audioUnlocked) return;
+      const ctx = this.sound.context;
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+      this.audioUnlocked = true;
+    };
+    this.input.keyboard.once('keydown', unlockAudio);
+    this.input.once('pointerdown', unlockAudio);
 
     this.setupNetwork();
     this.setupCollisions();
     this.spawnInitialWave();
+  }
+
+  /** Play a one-shot SFX if loaded and audio context is allowed (unlocked). */
+  playSfx(key) {
+    if (!this.audioUnlocked) return;
+    if (!this.cache.audio.exists(key)) return;
+    this.sound.play(key);
+  }
+
+  toggleFullscreen() {
+    if (this.scale.isFullscreen) {
+      this.scale.stopFullscreen();
+    } else {
+      this.scale.startFullscreen();
+    }
   }
 
   setupNetwork() {
@@ -147,6 +183,7 @@ export class Game extends Phaser.Scene {
       ship = new Ship(this, data.x, data.y, data.playerId);
       this.remoteShips.set(data.playerId, ship);
       this.ships.push(ship);
+      this.shipGroup.add(ship);
     }
     ship.x = data.x;
     ship.y = data.y;
@@ -186,16 +223,30 @@ export class Game extends Phaser.Scene {
       this
     );
     this.physics.add.overlap(
-      this.ships,
+      this.shipGroup,
       this.asteroidGroup,
       (ship, ast) => this.onShipHitAsteroid(ship, ast),
       null,
       this
     );
     this.physics.add.overlap(
-      this.ships,
+      this.shipGroup,
       this.powerupGroup,
       (ship, pwr) => this.onShipPickupPowerup(ship, pwr),
+      null,
+      this
+    );
+    this.physics.add.overlap(
+      this.rocketGroup,
+      this.asteroidGroup,
+      (rocket, ast) => this.onRocketHitAsteroid(rocket, ast),
+      null,
+      this
+    );
+    this.physics.add.overlap(
+      this.asteroidGroup,
+      this.asteroidGroup,
+      (ast1, ast2) => this.onAsteroidHitAsteroid(ast1, ast2),
       null,
       this
     );
@@ -203,7 +254,7 @@ export class Game extends Phaser.Scene {
     if (this.gameMode === 'combat') {
       this.physics.add.overlap(
         this.projectileGroup,
-        this.ships,
+        this.shipGroup,
         (proj, ship) => this.onProjectileHitShip(proj, ship),
         null,
         this
@@ -231,11 +282,15 @@ export class Game extends Phaser.Scene {
     this.projectileGroup.remove(proj);
     proj.destroy();
     const asteroid = ast.asteroidId ? ast : this.spawnManager.asteroids.find((a) => a === ast);
-    if (!asteroid) return;
-    this.asteroidGroup.remove(asteroid);
-    this.scoreManager.addAsteroidScore(proj.ownerId || 'player1', asteroid.asteroidSize);
+    if (asteroid && this.asteroidGroup.contains(asteroid)) {
+      this.destroyAsteroid(asteroid, proj.ownerId || 'player1');
+    }
+  }
 
-    // Scale the explosion to the asteroid's size category
+  /** Full destroy: explosion, score, powerup, split. Used by projectile/ship/rocket. */
+  destroyAsteroid(asteroid, ownerId) {
+    this.asteroidGroup.remove(asteroid);
+    this.scoreManager.addAsteroidScore(ownerId, asteroid.asteroidSize);
     const explosionParams = {
       large:  { count: 20, speed: 160, duration: 800, size: 5 },
       medium: { count: 12, speed: 110, duration: 600, size: 3 },
@@ -243,9 +298,7 @@ export class Game extends Phaser.Scene {
     };
     const params = explosionParams[asteroid.asteroidSize] ?? explosionParams.medium;
     new Explosion(this, asteroid.x, asteroid.y, { ...params, color: 0xaaaaaa });
-
-    this.sound.play('sfx-explode');
-
+    this.playSfx('sfx-explode');
     const powerup = this.spawnManager.spawnPowerup(asteroid.x, asteroid.y);
     if (powerup) this.powerupGroup.add(powerup);
     const children = this.spawnManager.splitAsteroid(asteroid);
@@ -255,8 +308,28 @@ export class Game extends Phaser.Scene {
     }
   }
 
+  /** Break only: explosion + split, no score/powerup. Used by asteroid-asteroid collision. */
+  breakAsteroidOnly(asteroid) {
+    const explosionParams = {
+      large:  { count: 20, speed: 160, duration: 800, size: 5 },
+      medium: { count: 12, speed: 110, duration: 600, size: 3 },
+      small:  { count:  7, speed:  70, duration: 450, size: 2 },
+    };
+    const params = explosionParams[asteroid.asteroidSize] ?? explosionParams.medium;
+    new Explosion(this, asteroid.x, asteroid.y, { ...params, color: 0x888888 });
+    this.playSfx('sfx-explode');
+    this.asteroidGroup.remove(asteroid);
+    const children = this.spawnManager.splitAsteroidOnly(asteroid);
+    children.forEach((c) => { this.asteroidGroup.add(c); c.launch(); });
+  }
+
   onShipHitAsteroid(ship, ast) {
     if (ship.isDead) return;
+    // Asteroid breaks apart on ship collision (score + powerup + split)
+    const asteroid = ast.asteroidId ? ast : this.spawnManager.asteroids.find((a) => a === ast);
+    if (asteroid && this.asteroidGroup.contains(asteroid)) {
+      this.destroyAsteroid(asteroid, ship.playerId);
+    }
     const lives = this.scoreManager.loseLife(ship.playerId);
     if (lives <= 0) {
       this.killShip(ship, false);
@@ -266,9 +339,48 @@ export class Game extends Phaser.Scene {
     }
   }
 
+  /** Break asteroid on asteroid-asteroid collision: explosion + split, no score/powerup. */
+  onAsteroidHitAsteroid(ast1, ast2) {
+    if (ast1 === ast2 || !ast1.active || !ast2.active) return;
+    const a1 = ast1.asteroidId ? ast1 : this.spawnManager.asteroids.find((a) => a === ast1);
+    const a2 = ast2.asteroidId ? ast2 : this.spawnManager.asteroids.find((a) => a === ast2);
+    if (a1 && this.asteroidGroup.contains(a1)) this.breakAsteroidOnly(a1);
+    if (a2 && this.asteroidGroup.contains(a2)) this.breakAsteroidOnly(a2);
+  }
+
+  onRocketHitAsteroid(rocket, ast) {
+    if (!rocket.body) return;
+    const rx = rocket.x;
+    const ry = rocket.y;
+    const ownerId = rocket.ownerId || 'player1';
+    this.rocketGroup.remove(rocket);
+    rocket.destroy();
+    this.explodeRocketAt(rx, ry, ownerId);
+  }
+
+  /** Rocket explosion: SFX, visual, destroy all asteroids in radius. */
+  explodeRocketAt(rx, ry, ownerId) {
+    this.playSfx('sfx-rocket-explode');
+    new Explosion(this, rx, ry, {
+      count: 22,
+      speed: 180,
+      duration: 900,
+      size: 6,
+      color: 0xff6600,
+    });
+    const radius = PHYSICS.ROCKET.EXPLOSION_RADIUS;
+    const inRadius = this.spawnManager.asteroids.filter((asteroid) => {
+      if (!asteroid.active) return false;
+      const dx = asteroid.x - rx;
+      const dy = asteroid.y - ry;
+      return dx * dx + dy * dy <= radius * radius;
+    });
+    inRadius.forEach((asteroid) => this.destroyAsteroid(asteroid, ownerId));
+  }
+
   onShipPickupPowerup(ship, pwr) {
     this.powerupGroup.remove(pwr);
-    this.sound.play('sfx-powerup');
+    this.playSfx('sfx-powerup');
     switch (pwr.powerupType) {
       case 'extra_life':
         this.scoreManager.addLife(ship.playerId);
@@ -279,6 +391,15 @@ export class Game extends Phaser.Scene {
       case 'score_multiplier':
         this.scoreManager.setScoreMultiplier(2);
         this.time.delayedCall(10000, () => this.scoreManager.setScoreMultiplier(1));
+        break;
+      case 'spread_shot':
+        this.spreadShotUntil = this.time.now + 8000;
+        break;
+      case 'fast_projectiles':
+        this.fastProjectilesUntil = this.time.now + 6000;
+        break;
+      case 'rockets':
+        this.rocketsRemaining += 3;
         break;
       default:
         break;
@@ -296,7 +417,7 @@ export class Game extends Phaser.Scene {
     ship.setVisible(false);
     ship.body.enable = false;
 
-    this.sound.play('sfx-die');
+    this.playSfx('sfx-die');
     new Explosion(this, ship.x, ship.y, {
       count:    18,
       speed:    140,
@@ -366,23 +487,37 @@ export class Game extends Phaser.Scene {
 
   fire(ship) {
     if (this.fireCooldown > 0) return;
-    const cooldown = this.rapidFireUntil > this.time.now ? 100 : 300;
+    const now = this.time.now;
+    const useRocket = this.rocketsRemaining > 0 && ship.playerId === this.localPlayerId;
+    if (useRocket) {
+      this.rocketsRemaining--;
+      this.fireCooldown = 200;
+      this.playSfx('sfx-rocket-fire');
+      const rocket = new Rocket(this, ship.x, ship.y, ship.rotation, ship.playerId);
+      this.rocketGroup.add(rocket);
+      rocket.launch(ship.rotation);
+      return;
+    }
+    const cooldown = this.rapidFireUntil > now ? 100 : 300;
     this.fireCooldown = cooldown;
-    this.sound.play('sfx-shot');
-    const proj = new Projectile(this, ship.x, ship.y, ship.rotation, ship.playerId);
-    this.projectiles.push(proj);
-    this.projectileGroup.add(proj);
-    // Launch after group.add — PhysicsGroup resets velocity to 0 on add
-    proj.launch(ship.rotation);
-    if (this.network.connected) {
-      this.network.send({
-        type: 'PROJECTILE',
-        id: proj.projectileId,
-        x: ship.x,
-        y: ship.y,
-        angle: ship.rotation,
-        ownerId: ship.playerId,
-      });
+    this.playSfx('sfx-shot');
+    const spread = this.spreadShotUntil > now;
+    const angles = spread ? [ship.rotation, ship.rotation + Math.PI] : [ship.rotation];
+    for (const angle of angles) {
+      const proj = new Projectile(this, ship.x, ship.y, angle, ship.playerId);
+      this.projectiles.push(proj);
+      this.projectileGroup.add(proj);
+      proj.launch(angle);
+      if (this.network.connected) {
+        this.network.send({
+          type: 'PROJECTILE',
+          id: proj.projectileId,
+          x: ship.x,
+          y: ship.y,
+          angle,
+          ownerId: ship.playerId,
+        });
+      }
     }
   }
 
@@ -398,6 +533,7 @@ export class Game extends Phaser.Scene {
 
     this.ships.forEach((s) => { if (!s.isDead) wrapSprite(this.physics.world, s); });
     this.projectileGroup.getChildren().forEach((p) => wrapSprite(this.physics.world, p));
+    this.rocketGroup.getChildren().forEach((r) => wrapSprite(this.physics.world, r));
     this.spawnManager.asteroids.forEach((a) => wrapSprite(this.physics.world, a));
     this.spawnManager.powerups.forEach((p) => wrapSprite(this.physics.world, p));
 
@@ -407,19 +543,21 @@ export class Game extends Phaser.Scene {
         p.destroy();
       }
     });
+    this.rocketGroup.getChildren().forEach((r) => {
+      if (r.isExpired?.()) {
+        const rx = r.x;
+        const ry = r.y;
+        const ownerId = r.ownerId || 'player1';
+        this.rocketGroup.remove(r);
+        r.destroy();
+        this.explodeRocketAt(rx, ry, ownerId);
+      }
+    });
     this.spawnManager.powerups.forEach((p) => {
       if (p.isExpired?.()) this.spawnManager.removePowerup(p);
     });
 
     if (this.fireCooldown > 0) this.fireCooldown -= delta;
-
-    // Thrust SFX: play while any ship is thrusting, stop when none
-    if (this.anyThrusting) {
-      if (!this.thrustSound.isPlaying) this.thrustSound.play();
-    } else {
-      if (this.thrustSound.isPlaying) this.thrustSound.stop();
-    }
-    this.anyThrusting = false;
 
     this.scoreText.setText(`Score: ${this.scoreManager.getTotalScore()}`);
     this.livesText.setText(`Lives: ${this.scoreManager.getLives(this.localPlayerId)}`);
@@ -462,9 +600,17 @@ export class Game extends Phaser.Scene {
 
   applyInputToShip(ship, input) {
     if (!ship || !ship.body || ship.isDead) return;
-    if (input.thrust) {
-      this.anyThrusting = true;
-      ship.applyThrust?.();
+    if (!this.audioUnlocked && (input.thrust || input.thrustLeft || input.thrustRight || input.fire || input.rotateLeft || input.rotateRight)) {
+      const ctx = this.sound.context;
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+      this.audioUnlocked = true;
+    }
+    const anyThrust = input.thrust || input.thrustLeft || input.thrustRight;
+    if (anyThrust) {
+      ship.body.setAcceleration(0, 0);
+      if (input.thrust) ship.applyThrust?.();
+      if (input.thrustLeft) ship.applyThrustLeft?.();
+      if (input.thrustRight) ship.applyThrustRight?.();
     } else if (input.brake) ship.brake?.();
     else ship.stopThrust?.();
     if (input.rotateLeft) ship.rotateLeft?.();

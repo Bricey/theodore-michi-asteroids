@@ -25,7 +25,9 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
    * because PhysicsGroup.createCallbackHandler resets velocity to 0 on add.
    */
   launch(angle) {
-    this.scene.physics.velocityFromRotation(angle, PHYSICS.PROJECTILE.VELOCITY, this.body.velocity);
+    const fast = this.scene.fastProjectilesUntil > this.scene.time.now;
+    const speed = fast ? PHYSICS.PROJECTILE.VELOCITY_FAST : PHYSICS.PROJECTILE.VELOCITY;
+    this.scene.physics.velocityFromRotation(angle, speed, this.body.velocity);
   }
 
   isExpired() {
