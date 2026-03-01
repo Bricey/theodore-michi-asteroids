@@ -1,18 +1,21 @@
 /**
  * Ship: Player-controlled vessel with Asteroids-style physics.
- * Placeholder: triangle texture. Swap with setTexture('ship') for final art.
+ * Uses theo-ship.png; falls back to ship_placeholder if not loaded.
  */
 import { PHYSICS } from '../config/gameConfig.js';
 
 export class Ship extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, playerId = 'player1') {
-    const textureKey = 'ship_placeholder';
+    const textureKey = scene.textures.exists('theo-ship') ? 'theo-ship' : 'ship_placeholder';
     super(scene, x, y, textureKey);
     this.playerId = playerId;
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
     this.setDisplaySize(32, 32);
+    this.setScale(0.425);
+    // Brighter red for player 1, brighter green for player 2
+    this.setTint(playerId === 'player1' ? 0xff6666 : 0x66ff66);
     this.configurePhysics();
   }
 
@@ -20,7 +23,7 @@ export class Ship extends Phaser.Physics.Arcade.Sprite {
     body.setDamping(PHYSICS.SHIP.DAMPING);
     body.setDrag(PHYSICS.SHIP.DRAG);
     body.setMaxVelocity(PHYSICS.SHIP.MAX_VELOCITY);
-    body.setCircle(12);
+    body.setCircle(5);
   }
 
   applyThrust() {

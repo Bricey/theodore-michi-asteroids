@@ -54,11 +54,15 @@ export class Game extends Phaser.Scene {
     this.livesText = this.add.text(20, 50, 'Lives: 3', { fontFamily: 'sans-serif', fontSize: '24px', color: '#fff' });
     this.roomCodeText = this.add.text(width - 20, 20, '', { fontFamily: 'sans-serif', fontSize: '20px', color: '#aaa' }).setOrigin(1, 0);
 
-    // Collision groups
+    // Collision groups (plain groups so overlap uses each sprite's body correctly)
     this.physics.add.group(this.ships);
-    this.projectileGroup = this.physics.add.group();
-    this.asteroidGroup = this.physics.add.group();
-    this.powerupGroup = this.physics.add.group();
+    this.projectileGroup = this.add.group();
+    this.asteroidGroup = this.add.group();
+    this.powerupGroup = this.add.group();
+
+    // Looping thrust SFX (start/stop controlled in update from input)
+    this.thrustSound = this.sound.add('sfx-thrust', { loop: true });
+    this.anyThrusting = false;
 
     this.setupNetwork();
     this.setupCollisions();
@@ -223,6 +227,8 @@ export class Game extends Phaser.Scene {
   }
 
   onProjectileHitAsteroid(proj, ast) {
+    if (!proj.body) return;
+    this.projectileGroup.remove(proj);
     proj.destroy();
     const asteroid = ast.asteroidId ? ast : this.spawnManager.asteroids.find((a) => a === ast);
     if (!asteroid) return;
@@ -237,6 +243,8 @@ export class Game extends Phaser.Scene {
     };
     const params = explosionParams[asteroid.asteroidSize] ?? explosionParams.medium;
     new Explosion(this, asteroid.x, asteroid.y, { ...params, color: 0xaaaaaa });
+
+    this.sound.play('sfx-explode');
 
     const powerup = this.spawnManager.spawnPowerup(asteroid.x, asteroid.y);
     if (powerup) this.powerupGroup.add(powerup);
@@ -260,6 +268,7 @@ export class Game extends Phaser.Scene {
 
   onShipPickupPowerup(ship, pwr) {
     this.powerupGroup.remove(pwr);
+    this.sound.play('sfx-powerup');
     switch (pwr.powerupType) {
       case 'extra_life':
         this.scoreManager.addLife(ship.playerId);
@@ -287,6 +296,7 @@ export class Game extends Phaser.Scene {
     ship.setVisible(false);
     ship.body.enable = false;
 
+    this.sound.play('sfx-die');
     new Explosion(this, ship.x, ship.y, {
       count:    18,
       speed:    140,
@@ -358,6 +368,7 @@ export class Game extends Phaser.Scene {
     if (this.fireCooldown > 0) return;
     const cooldown = this.rapidFireUntil > this.time.now ? 100 : 300;
     this.fireCooldown = cooldown;
+    this.sound.play('sfx-shot');
     const proj = new Projectile(this, ship.x, ship.y, ship.rotation, ship.playerId);
     this.projectiles.push(proj);
     this.projectileGroup.add(proj);
@@ -391,13 +402,24 @@ export class Game extends Phaser.Scene {
     this.spawnManager.powerups.forEach((p) => wrapSprite(this.physics.world, p));
 
     this.projectileGroup.getChildren().forEach((p) => {
-      if (p.isExpired?.()) p.destroy();
+      if (p.isExpired?.()) {
+        this.projectileGroup.remove(p);
+        p.destroy();
+      }
     });
     this.spawnManager.powerups.forEach((p) => {
       if (p.isExpired?.()) this.spawnManager.removePowerup(p);
     });
 
     if (this.fireCooldown > 0) this.fireCooldown -= delta;
+
+    // Thrust SFX: play while any ship is thrusting, stop when none
+    if (this.anyThrusting) {
+      if (!this.thrustSound.isPlaying) this.thrustSound.play();
+    } else {
+      if (this.thrustSound.isPlaying) this.thrustSound.stop();
+    }
+    this.anyThrusting = false;
 
     this.scoreText.setText(`Score: ${this.scoreManager.getTotalScore()}`);
     this.livesText.setText(`Lives: ${this.scoreManager.getLives(this.localPlayerId)}`);
@@ -440,8 +462,10 @@ export class Game extends Phaser.Scene {
 
   applyInputToShip(ship, input) {
     if (!ship || !ship.body || ship.isDead) return;
-    if (input.thrust) ship.applyThrust?.();
-    else if (input.brake) ship.brake?.();
+    if (input.thrust) {
+      this.anyThrusting = true;
+      ship.applyThrust?.();
+    } else if (input.brake) ship.brake?.();
     else ship.stopThrust?.();
     if (input.rotateLeft) ship.rotateLeft?.();
     else if (input.rotateRight) ship.rotateRight?.();

@@ -1,12 +1,26 @@
 /**
  * Asteroid: Destructible obstacle with physics. Splits into smaller on hit.
+ * Art: biggest (LARGE) = smiling, smaller (MEDIUM/SMALL) = sad face only.
  */
 import { PHYSICS } from '../config/gameConfig.js';
 import { createAsteroidPoints, ASTEROID_SIZE, ASTEROID_RADIUS } from '../utils/geometry.js';
 
+/** Texture key by size: LARGE = happy, MEDIUM/SMALL = sad. */
+const ASTEROID_TEXTURE = {
+  [ASTEROID_SIZE.LARGE]: 'michi-happyFace',
+  [ASTEROID_SIZE.MEDIUM]: 'michi-sadFace',
+  [ASTEROID_SIZE.SMALL]: 'michi-sadFace',
+};
+
+function getAsteroidTextureKey(scene, size) {
+  const key = ASTEROID_TEXTURE[size];
+  return key && scene.textures.exists(key) ? key : 'asteroid_placeholder';
+}
+
 export class Asteroid extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, size = ASTEROID_SIZE.LARGE, id = null) {
-    super(scene, x, y, 'asteroid_placeholder');
+    const textureKey = getAsteroidTextureKey(scene, size);
+    super(scene, x, y, textureKey);
     this.asteroidSize = size;
     this.asteroidId = id ?? `ast_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     scene.add.existing(this);

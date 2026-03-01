@@ -7,7 +7,7 @@ export const gameConfig = {
   parent: 'game-container',
   width: 1080,
   height: 1920,
-  backgroundColor: '#0a0a0a',
+  backgroundColor: '#000000',
   physics: {
     default: 'arcade',
     arcade: {

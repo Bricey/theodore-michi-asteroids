@@ -23,10 +23,25 @@ export class Preloader extends Phaser.Scene {
       bar.width = 396;
     });
 
-    // Generate placeholder textures at runtime (no external assets required)
+    // Generate placeholder textures for bullet/powerup (ship & asteroids use real art)
     this.createPlaceholderTextures();
 
-    // Load minimal asset so progress bar animates
+    // Game art: ship and asteroids
+    const img = 'assets/images';
+    this.load.image('theo-ship', `${img}/theo-ship.png`);
+    this.load.image('michi-happyFace', `${img}/michi-happyFace.png`);
+    this.load.image('michi-sadFace', `${img}/michi-sadFace.png`);
+    this.load.image('theo-butt', `${img}/theo-butt.png`);
+
+    // Action-pack SFX (local under assets/audio/sfx)
+    const sfx = 'assets/audio/sfx';
+    this.load.audio('sfx-shot', `${sfx}/shot.ogg`);
+    this.load.audio('sfx-explode', `${sfx}/explode.ogg`);
+    this.load.audio('sfx-die', `${sfx}/die.ogg`);
+    this.load.audio('sfx-powerup', `${sfx}/powerup2.ogg`);
+    this.load.audio('sfx-thrust', `${sfx}/fire.ogg`);
+
+    // Minimal asset so progress bar animates
     this.load.image('dummy', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
     this.load.start();
   }
@@ -52,7 +67,7 @@ export class Preloader extends Phaser.Scene {
       g.destroy();
     };
 
-    // Ship: triangle pointing up
+    // Fallbacks if image load fails
     createTriangle('ship_placeholder', 16, 0x00ff00);
     createCircle('asteroid_placeholder', 24, 0x888888);
     createCircle('bullet_placeholder', 4, 0xffff00);

@@ -1,5 +1,6 @@
 /**
  * Powerup: Drops from destroyed asteroids. Types: extra life, rapid fire, shield, score multiplier.
+ * Art: theo-butt.png.
  */
 export const POWERUP_TYPES = {
   EXTRA_LIFE: 'extra_life',
@@ -10,7 +11,8 @@ export const POWERUP_TYPES = {
 
 export class Powerup extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, type, id = null) {
-    super(scene, x, y, 'powerup_placeholder');
+    const textureKey = scene.textures.exists('theo-butt') ? 'theo-butt' : 'powerup_placeholder';
+    super(scene, x, y, textureKey);
     this.powerupType = type;
     this.powerupId = id ?? `pwr_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     this.spawnTime = scene.time.now;
