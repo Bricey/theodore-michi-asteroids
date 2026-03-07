@@ -1,11 +1,11 @@
 /**
  * VirtualJoystick: Touch-based joystick and fire button for mobile.
- * Minimal custom implementation (no external plugin).
+ * Arcade-style controls with clear visibility for portrait play.
  */
 export class VirtualJoystick {
   constructor(scene, options = {}) {
     this.scene = scene;
-    this.radius = options.radius ?? 80;
+    this.radius = options.radius ?? 100;
     this.baseX = options.x ?? 200;
     this.baseY = options.y ?? 900;
     this.fireX = options.fireX ?? 1720;
@@ -23,22 +23,33 @@ export class VirtualJoystick {
   create() {
     const { baseX, baseY, radius, fireX, fireY } = this;
 
-    // Joystick base
-    this.base = this.scene.add.circle(baseX, baseY, radius, 0x333333, 0.5);
+    // Joystick base: arcade-style dark ring with bright inner
+    this.base = this.scene.add.circle(baseX, baseY, radius, 0x1a1a1a, 0.9);
+    this.base.setStrokeStyle(4, 0x00ff88, 0.9);
     this.base.setScrollFactor(0);
     this.base.setDepth(1000);
     this.base.setInteractive({ useHandCursor: false });
 
-    // Joystick thumb
-    this.thumb = this.scene.add.circle(baseX, baseY, radius * 0.4, 0x666666, 0.7);
+    // Joystick thumb: high-contrast cap
+    const thumbRadius = radius * 0.45;
+    this.thumb = this.scene.add.circle(baseX, baseY, thumbRadius, 0x00ff88, 0.85);
+    this.thumb.setStrokeStyle(3, 0xffffff, 0.6);
     this.thumb.setScrollFactor(0);
     this.thumb.setDepth(1001);
 
-    // Fire button
-    this.fireBtn = this.scene.add.circle(fireX, fireY, 60, 0xcc3333, 0.6);
+    // Fire button: arcade red with label
+    const fireRadius = 72;
+    this.fireBtn = this.scene.add.circle(fireX, fireY, fireRadius, 0xcc2222, 0.9);
+    this.fireBtn.setStrokeStyle(4, 0xff4444, 1);
     this.fireBtn.setScrollFactor(0);
     this.fireBtn.setDepth(1000);
     this.fireBtn.setInteractive({ useHandCursor: false });
+    this.fireLabel = this.scene.add.text(fireX, fireY, 'FIRE', {
+      fontFamily: 'sans-serif',
+      fontSize: '22px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
 
     this.base.on('pointerdown', (ptr) => this.onStickDown(ptr));
     this.scene.input.on('pointermove', (ptr) => this.onStickMove(ptr));
@@ -82,7 +93,8 @@ export class VirtualJoystick {
 
   /**
    * Get input state. Threshold ~0.3 for deadzone.
-   * @returns {{ thrust: boolean, rotateLeft: boolean, rotateRight: boolean, fire: boolean }}
+   * Stick up = thrust, down = brake, left/right = rotate.
+   * @returns {{ thrust: boolean, brake: boolean, rotateLeft: boolean, rotateRight: boolean, fire: boolean }}
    */
   getInput() {
     const threshold = 0.3;
@@ -93,6 +105,7 @@ export class VirtualJoystick {
 
     return {
       thrust: normY > threshold,
+      brake: normY < -threshold,
       rotateLeft: normX < -threshold,
       rotateRight: normX > threshold,
       fire,
@@ -103,5 +116,6 @@ export class VirtualJoystick {
     this.base.setVisible(visible);
     this.thumb.setVisible(visible);
     this.fireBtn.setVisible(visible);
+    if (this.fireLabel) this.fireLabel.setVisible(visible);
   }
 }

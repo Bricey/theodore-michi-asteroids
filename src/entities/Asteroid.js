@@ -23,6 +23,8 @@ export class Asteroid extends Phaser.Physics.Arcade.Sprite {
     super(scene, x, y, textureKey);
     this.asteroidSize = size;
     this.asteroidId = id ?? `ast_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    // Track lifetime so smallest asteroids can self-detonate
+    this.spawnTime = scene.time.now;
     scene.add.existing(this);
     scene.physics.add.existing(this);
 

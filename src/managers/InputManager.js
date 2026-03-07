@@ -55,12 +55,14 @@ export class InputManager {
     if (isMobile) {
       const w = this.scene.scale.width;
       const h = this.scene.scale.height;
+      const margin = 180;
+      const bottomY = h - margin;
       this.virtualJoystick = new VirtualJoystick(this.scene, {
-        x: 200,
-        y: h - 250,
-        radius: 80,
-        fireX: w - 200,
-        fireY: h - 250,
+        x: margin,
+        y: bottomY,
+        radius: 100,
+        fireX: w - margin,
+        fireY: bottomY,
       });
     }
   }

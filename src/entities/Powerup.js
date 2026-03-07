@@ -1,18 +1,17 @@
 /**
- * Powerup: Drops from destroyed asteroids. Types: extra life, rapid fire, shield, score multiplier.
+ * Powerup: Drops from destroyed asteroids.
+ * Types: rapid fire, extended range, spread shot (30s each), missile (1 per pickup).
  * Art: theo-butt.png.
  */
 export const POWERUP_TYPES = {
-  EXTRA_LIFE: 'extra_life',
+  /** Increased firing speed for 30 seconds */
   RAPID_FIRE: 'rapid_fire',
-  SHIELD: 'shield',
-  SCORE_MULTIPLIER: 'score_multiplier',
-  /** Fire two projectiles in opposite directions for a duration */
+  /** Increased projectile range for 30 seconds */
+  EXTENDED_RANGE: 'extended_range',
+  /** Fire two projectiles in opposite directions for 30 seconds */
   SPREAD_SHOT: 'spread_shot',
-  /** Projectiles travel faster for a duration */
-  FAST_PROJECTILES: 'fast_projectiles',
-  /** Grant 3 rockets: fast projectiles that explode and destroy in radius */
-  ROCKETS: 'rockets',
+  /** Grant 1 missile: explodes with 400px radius */
+  MISSILE: 'missile',
 };
 
 export class Powerup extends Phaser.Physics.Arcade.Sprite {
@@ -26,8 +25,9 @@ export class Powerup extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    this.setDisplaySize(24, 24);
-    this.body.setCircle(12);
+    // Slightly larger so pickups read more clearly; generous body for reliable overlap
+    this.setDisplaySize(32, 32);
+    this.body.setCircle(24);
     this.setVelocity(0, 0);
   }
 

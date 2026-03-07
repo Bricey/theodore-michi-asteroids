@@ -45,6 +45,8 @@ export class Preloader extends Phaser.Scene {
     this.load.audio('sfx-powerup', [`${sfx}/powerup2.ogg`, `${sfx}/powerup2.wav`]);
     this.load.audio('sfx-rocket-fire', [`${sfx}/shot.ogg`, `${sfx}/shot.wav`]);
     this.load.audio('sfx-rocket-explode', [`${sfx}/explode.ogg`, `${sfx}/explode.wav`]);
+    this.load.audio('sfx-missile-fire', [`${sfx}/shot.ogg`, `${sfx}/shot.wav`]);
+    this.load.audio('sfx-missile-explode', [`${sfx}/explode.ogg`, `${sfx}/explode.wav`]);
 
     // Minimal asset so progress bar animates
     this.load.image('dummy', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');

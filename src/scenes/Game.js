@@ -12,8 +12,9 @@ import { NetworkManager } from '../managers/NetworkManager.js';
 import { SpawnManager } from '../managers/SpawnManager.js';
 import { ScoreManager } from '../managers/ScoreManager.js';
 import { wrapSprite } from '../utils/screenWrap.js';
+import { ASTEROID_SIZE } from '../utils/geometry.js';
 import { NETWORK } from '../config/networkConfig.js';
-import { PHYSICS } from '../config/gameConfig.js';
+import { PHYSICS, PICKUP_RADIUS } from '../config/gameConfig.js';
 
 export class Game extends Phaser.Scene {
   constructor() {
@@ -39,7 +40,7 @@ export class Game extends Phaser.Scene {
     this.fireCooldownP2 = 0; // Per-player cooldown for local 2P
     this.rapidFireUntil = 0;
     this.spreadShotUntil = 0;
-    this.fastProjectilesUntil = 0;
+    this.extendedRangeUntil = 0;
     this.rocketsRemaining = 0;
     this.rocketsRemainingP2 = 0;
 
@@ -317,14 +318,20 @@ export class Game extends Phaser.Scene {
     const params = explosionParams[asteroid.asteroidSize] ?? explosionParams.medium;
     new Explosion(this, asteroid.x, asteroid.y, { ...params, color: 0xaaaaaa });
     this.playSfx('sfx-explode');
+    // Smallest asteroids: allow powerup drops but never spawn further asteroids
     const powerup = this.spawnManager.spawnPowerup(asteroid.x, asteroid.y);
     if (powerup) this.powerupGroup.add(powerup);
-    const children = this.spawnManager.splitAsteroid(asteroid);
-    children.forEach((c) => {
-      c.body.updateFromGameObject();
-      this.asteroidGroup.add(c);
-      c.launch();
-    });
+    if (asteroid.asteroidSize > ASTEROID_SIZE.SMALL) {
+      const children = this.spawnManager.splitAsteroid(asteroid);
+      children.forEach((c) => {
+        c.body.updateFromGameObject();
+        this.asteroidGroup.add(c);
+        c.launch();
+      });
+    } else {
+      // Ensure smallest asteroids are fully removed from the spawn manager
+      this.spawnManager.removeAsteroid(asteroid);
+    }
     if (this.network.connected) {
       this.network.send({ type: 'HIT', asteroidId: asteroid.asteroidId });
     }
@@ -341,6 +348,11 @@ export class Game extends Phaser.Scene {
     new Explosion(this, asteroid.x, asteroid.y, { ...params, color: 0x888888 });
     this.playSfx('sfx-explode');
     this.asteroidGroup.remove(asteroid);
+    // Smallest asteroids just vanish on break (no further splitting)
+    if (asteroid.asteroidSize <= ASTEROID_SIZE.SMALL) {
+      this.spawnManager.removeAsteroid(asteroid);
+      return;
+    }
     const children = this.spawnManager.splitAsteroidOnly(asteroid);
     children.forEach((c) => {
       c.body.updateFromGameObject();
@@ -384,15 +396,15 @@ export class Game extends Phaser.Scene {
     this.explodeRocketAt(rx, ry, ownerId);
   }
 
-  /** Rocket explosion: SFX, visual, destroy all asteroids in radius. */
+  /** Missile explosion: SFX, visual, destroy all asteroids in 400px radius. */
   explodeRocketAt(rx, ry, ownerId) {
-    this.playSfx('sfx-rocket-explode');
+    this.playSfx('sfx-missile-explode');
     new Explosion(this, rx, ry, {
-      count: 22,
-      speed: 180,
-      duration: 900,
-      size: 6,
-      color: 0xff6600,
+      count: 30,
+      speed: 250,
+      duration: 1200,
+      size: 8,
+      color: 0xff3333,
     });
     const radius = PHYSICS.ROCKET.EXPLOSION_RADIUS;
     const inRadius = this.spawnManager.asteroids.filter((asteroid) => {
@@ -405,35 +417,43 @@ export class Game extends Phaser.Scene {
   }
 
   onShipPickupPowerup(ship, pwr) {
+    if (!pwr.active) return;
     this.powerupGroup.remove(pwr);
     this.playSfx('sfx-powerup');
+    const thirtySec = 30000;
     switch (pwr.powerupType) {
-      case 'extra_life':
-        this.scoreManager.addLife(ship.playerId);
-        break;
       case 'rapid_fire':
-        this.rapidFireUntil = this.time.now + 5000;
+        this.rapidFireUntil = this.time.now + thirtySec;
         break;
-      case 'score_multiplier':
-        this.scoreManager.setScoreMultiplier(2);
-        this.time.delayedCall(10000, () => this.scoreManager.setScoreMultiplier(1));
+      case 'extended_range':
+        this.extendedRangeUntil = this.time.now + thirtySec;
         break;
       case 'spread_shot':
-        this.spreadShotUntil = this.time.now + 8000;
+        this.spreadShotUntil = this.time.now + thirtySec;
         break;
-      case 'fast_projectiles':
-        this.fastProjectilesUntil = this.time.now + 6000;
-        break;
-      case 'rockets':
+      case 'missile':
         if (this.twoPlayerLocal) {
-          if (ship.playerId === 'player1') this.rocketsRemaining += 3;
-          else this.rocketsRemainingP2 += 3;
-        } else this.rocketsRemaining += 3;
+          if (ship.playerId === 'player1') this.rocketsRemaining += 1;
+          else this.rocketsRemainingP2 += 1;
+        } else this.rocketsRemaining += 1;
         break;
       default:
         break;
     }
     this.spawnManager.removePowerup(pwr);
+  }
+
+  /** Distance-based pickup fallback — ensures reliable pickup even when physics overlap misses. */
+  checkPowerupPickups() {
+    const powerups = this.spawnManager.powerups.slice();
+    this.ships.forEach((ship) => {
+      if (ship.isDead) return;
+      powerups.forEach((pwr) => {
+        if (!pwr.active) return;
+        const dist = Phaser.Math.Distance.Between(ship.x, ship.y, pwr.x, pwr.y);
+        if (dist < PICKUP_RADIUS) this.onShipPickupPowerup(ship, pwr);
+      });
+    });
   }
 
   /**
@@ -534,7 +554,7 @@ export class Game extends Phaser.Scene {
         if (ship.playerId === 'player1') this.fireCooldown = 200;
         else this.fireCooldownP2 = 200;
       } else this.fireCooldown = 200;
-      this.playSfx('sfx-rocket-fire');
+      this.playSfx('sfx-missile-fire');
       const rocket = new Rocket(this, ship.x, ship.y, ship.rotation, ship.playerId);
       this.rocketGroup.add(rocket);
       rocket.launch(ship.rotation);
@@ -576,6 +596,8 @@ export class Game extends Phaser.Scene {
       this.applyInputToShip(this.ships[1], input2);
     }
 
+    this.checkPowerupPickups();
+
     this.ships.forEach((s) => { if (!s.isDead) wrapSprite(this.physics.world, s); });
     this.projectileGroup.getChildren().forEach((p) => wrapSprite(this.physics.world, p));
     this.rocketGroup.getChildren().forEach((r) => wrapSprite(this.physics.world, r));
@@ -601,6 +623,20 @@ export class Game extends Phaser.Scene {
     this.spawnManager.powerups.forEach((p) => {
       if (p.isExpired?.()) this.spawnManager.removePowerup(p);
     });
+    // Small asteroids self-detonate after a fixed lifetime
+    if (PHYSICS.ASTEROID.SELF_DESTRUCT_SMALL_MS > 0) {
+      const now = this.time.now;
+      // Copy array because breaking asteroids mutates spawnManager.asteroids
+      this.spawnManager.asteroids.slice().forEach((asteroid) => {
+        if (
+          asteroid.asteroidSize === ASTEROID_SIZE.SMALL &&
+          asteroid.spawnTime != null &&
+          now - asteroid.spawnTime > PHYSICS.ASTEROID.SELF_DESTRUCT_SMALL_MS
+        ) {
+          this.breakAsteroidOnly(asteroid);
+        }
+      });
+    }
 
     if (this.fireCooldown > 0) this.fireCooldown -= delta;
     if (this.twoPlayerLocal && this.fireCooldownP2 > 0) this.fireCooldownP2 -= delta;
