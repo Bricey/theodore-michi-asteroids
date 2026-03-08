@@ -45,6 +45,7 @@ export class NetworkManager {
         this.conn = dataConn;
         this.setupConnection(dataConn);
         dataConn.on('open', () => {
+          this.connected = true;
           this.emit('connected', { gameMode: this.scene?.registry?.get('gameMode') });
         });
       });
@@ -88,7 +89,11 @@ export class NetworkManager {
 
   setupConnection(conn) {
     conn.on('data', (data) => this.emit('data', data));
-    conn.on('close', () => this.emit('disconnect', {}));
+    conn.on('close', () => {
+      this.conn = null;
+      this.connected = false;
+      this.emit('disconnect', {});
+    });
     conn.on('error', (err) => this.emit('error', err));
   }
 

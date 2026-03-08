@@ -15,6 +15,7 @@ import { wrapSprite } from '../utils/screenWrap.js';
 import { ASTEROID_SIZE } from '../utils/geometry.js';
 import { NETWORK } from '../config/networkConfig.js';
 import { PHYSICS, PICKUP_RADIUS } from '../config/gameConfig.js';
+import { registerGame, removeGame } from '../services/MatchmakingService.js';
 
 export class Game extends Phaser.Scene {
   constructor() {
@@ -126,7 +127,9 @@ export class Game extends Phaser.Scene {
     }
     if (this.isHost) {
       this.network.createRoom().then((code) => {
-        this.roomCodeText.setText(`Room: ${code}`);
+        this.roomCode = code;
+        this.roomCodeText.setText(`Waiting for player...`);
+        registerGame(code, this.gameMode).catch((err) => console.error('Matchmaking register failed:', err));
       }).catch((err) => {
         this.roomCodeText.setText('Network error');
         console.error(err);
@@ -229,7 +232,50 @@ export class Game extends Phaser.Scene {
   }
 
   handleDisconnect() {
-    this.roomCodeText.setText('Disconnected');
+    if (this.isHost) {
+      // Guest left: remove them from game and re-open for new players
+      this.removeGuestAndReopenGame();
+    } else {
+      // Host disconnected: end game and return to menu
+      this.roomCodeText.setText('Host disconnected');
+      this.network.destroy();
+      this.time.delayedCall(1500, () => {
+        this.scene.start('MainMenu');
+      });
+    }
+  }
+
+  /**
+   * Remove the guest ship, clean up their projectiles, re-register game for matchmaking.
+   */
+  removeGuestAndReopenGame() {
+    const guestId = 'player2';
+    const guestShip = this.remoteShips.get(guestId);
+    if (guestShip) {
+      this.shipGroup.remove(guestShip);
+      this.ships = this.ships.filter((s) => s !== guestShip);
+      guestShip.destroy();
+      this.remoteShips.delete(guestId);
+    }
+    // Remove guest's projectiles
+    const toRemove = [];
+    this.remoteProjectiles.forEach((proj, id) => {
+      if (proj.ownerId === guestId) toRemove.push(id);
+    });
+    toRemove.forEach((id) => {
+      const proj = this.remoteProjectiles.get(id);
+      if (proj) {
+        this.projectileGroup.remove(proj);
+        proj.destroy();
+        this.remoteProjectiles.delete(id);
+      }
+    });
+    // Re-register so game appears in open games list again
+    registerGame(this.roomCode, this.gameMode).catch((err) =>
+      console.error('Matchmaking re-register failed:', err)
+    );
+    this.roomCodeText.setText('Waiting for player...');
+    // Host's peer stays open; new connection will fire peer.on('connection')
   }
 
   setupCollisions() {
@@ -705,5 +751,11 @@ export class Game extends Phaser.Scene {
     else if (input.rotateRight) ship.rotateRight?.();
     else ship.stopRotation?.();
     if (input.fire) this.fire(ship);
+  }
+
+  shutdown() {
+    if (this.isHost && !this.twoPlayerLocal && this.roomCode) {
+      removeGame(this.roomCode).catch((err) => console.error('Matchmaking remove failed:', err));
+    }
   }
 }

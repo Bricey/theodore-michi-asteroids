@@ -3,3 +3,11 @@
 name = "asteroids-clone"
 compatibility_date = "2024-01-01"
 pages_build_output_dir = "dist"
+
+# D1 database for matchmaking. Run: npx wrangler d1 create asteroids-matchmaking
+# Then replace the database_id below with the output, and run migrations:
+#   npx wrangler d1 execute asteroids-matchmaking --remote --file=./migrations/0001_create_open_games.sql
+[[d1_databases]]
+binding = "MATCHMAKING_DB"
+database_name = "asteroids-matchmaking"
+database_id = "97c29818-ca2d-4432-8dc7-a7e82e2cd331"

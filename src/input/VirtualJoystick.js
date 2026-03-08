@@ -54,8 +54,10 @@ export class VirtualJoystick {
     this.base.on('pointerdown', (ptr) => this.onStickDown(ptr));
     this.scene.input.on('pointermove', (ptr) => this.onStickMove(ptr));
     this.scene.input.on('pointerup', (ptr) => this.onStickUp(ptr));
+    // Fire button: separate pointer so joystick + fire work simultaneously
     this.fireBtn.on('pointerdown', () => { this.fireDown = true; });
     this.fireBtn.on('pointerup', () => { this.fireDown = false; });
+    this.fireBtn.on('pointerupoutside', () => { this.fireDown = false; });
   }
 
   onStickDown(ptr) {

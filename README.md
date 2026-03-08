@@ -57,6 +57,13 @@ Deploy the `dist/` folder to Netlify or Cloudflare Pages. HTTPS is required for 
 5. **Two-player support**  
    The game uses PeerJS with the default signaling server and WebRTC (STUN/TURN in `src/config/networkConfig.js`). No extra Cloudflare config is required; two players can host/join from the same Pages URL.
 
+6. **Matchmaking (D1 database)**  
+   Auto-matchmaking requires a D1 database. One-time setup:
+   - Create the database: `npx wrangler d1 create asteroids-matchmaking`
+   - Copy the `database_id` from the output into `wrangler.toml` (replace `REPLACE_AFTER_D1_CREATE`)
+   - Run the migration: `npx wrangler d1 execute asteroids-matchmaking --remote --file=./migrations/0001_create_open_games.sql`
+   - For Git-based deploys: add the D1 binding in Cloudflare Dashboard → Pages project → Settings → Functions → D1 database bindings
+
 **Optional – deploy from CLI (no Git):**
 
 ```bash

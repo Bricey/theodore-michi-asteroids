@@ -15,6 +15,10 @@ export const gameConfig = {
   width,
   height,
   backgroundColor: '#000000',
+  // Enable multi-touch so joystick and fire button work simultaneously on mobile
+  input: {
+    activePointers: isMobile ? 3 : 1,
+  },
   physics: {
     default: 'arcade',
     arcade: {
